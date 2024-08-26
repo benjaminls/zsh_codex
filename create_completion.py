@@ -7,6 +7,8 @@ import configparser
 import argparse
 import prompt_library
 
+CODE_PATH = __file__[: __file__.rfind("/")]
+
 # Conditionally import OpenAI and Google Generative AI
 try:
     from openai import OpenAI
@@ -183,11 +185,11 @@ def get_completion(api_type, client, config, full_command, cwd):
             messages=send_messages,
             temperature=float(config.get("temperature", 1.0)),
         )
-        with open("send.txt", "w") as f:
+        with open(CODE_PATH + "send.txt", "w") as f:
             f.write(f"model = {config['model']}\n\n")
             f.write(f"messages = {send_messages}\n\n")
             f.close()
-        with open("response.txt", "w") as f:
+        with open(CODE_PATH + "response.txt", "w") as f:
             f.write(f"{response.usage.__str__()}\n\n")
             f.write(f"{response.model.__str__()}\n\n")
             f.write(f"{response.choices.__str__()}\n\n")
