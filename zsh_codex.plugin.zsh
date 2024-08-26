@@ -7,13 +7,20 @@ api="openai"
 create_completion() {
     # Get the text typed until now.
     local text=$BUFFER
+    local cwd=${PWD}
     local ZSH_CODEX_PYTHON="${ZSH_CODEX_PYTHON:-python3}"
-    local completion=$(echo -n "$text" | $ZSH_CODEX_PYTHON $ZSH_CUSTOM/plugins/zsh_codex/create_completion.py --api "$api" $CURSOR)
+    local completion=$(echo -n "$text" | $ZSH_CODEX_PYTHON $ZSH_CUSTOM/plugins/zsh_codex/create_completion.py --api "$api" --cwd "$cwd" $CURSOR)
     local text_before_cursor=${BUFFER:0:$CURSOR}
     local text_after_cursor=${BUFFER:$CURSOR}
     
     # Add completion to the current buffer.
-    BUFFER="${text_before_cursor}${completion}${text_after_cursor}"
+    # BUFFER="${text_before_cursor}${completion}${text_after_cursor}"
+    if [[ ${text_before_cursor} == *#* ]]; then
+      BUFFER="${completion}${text_after_cursor}"
+    else
+      BUFFER="${text_before_cursor}${completion}${text_after_cursor}"
+    fi
+
     
     # Put the cursor at the end of the completion
     CURSOR=$((CURSOR + ${#completion}))
