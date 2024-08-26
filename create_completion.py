@@ -1,13 +1,18 @@
 #!/usr/bin/env python3
-
 import sys
 import os
 import re
+import time
 import configparser
 import argparse
 import prompt_library
 
+DO_TIMESTAMPS = False
+DO_SEND_RECEIVE = False
 CODE_PATH = __file__[: __file__.rfind("/")]
+TIMESTAMP_FILE = os.path.join(CODE_PATH, "timestamps.txt")
+if DO_TIMESTAMPS and os.path.exists(TIMESTAMP_FILE):
+    os.remove(TIMESTAMP_FILE)
 
 # Conditionally import OpenAI and Google Generative AI
 try:
@@ -29,6 +34,21 @@ GEMINI_API_KEYS_LOCATION = os.path.join(CONFIG_DIR, "geminiapirc")
 OPENAI_DEFAULT_MODEL = os.getenv("OPENAI_DEFAULT_MODEL", "gpt-4o-mini")
 GEMINI_DEFAULT_MODEL = os.getenv("GEMINI_DEFAULT_MODEL", "gemini-1.5-pro-latest")
 
+def timestamp(msg: str):
+    """Write timestamp to TIMESTAMP_FILE with message.
+
+    Args:
+        msg (str): Message for timestamp
+    """
+    if not DO_TIMESTAMPS:
+        return
+    with open(TIMESTAMP_FILE, "a") as f:
+        f.write(f"[ {time.time()} ] - {msg}\n")
+        f.close()
+    return
+
+
+
 
 def extract_paths(text: str):
     """
@@ -40,6 +60,7 @@ def extract_paths(text: str):
     Returns:
         (list[str]): List of strings of matched paths.
     """
+    timestamp("begin extract_paths")
     # regular expression patterns for unix-like and windows paths
     unix_path_pattern = r"(\.{1,2}/\S+|/\S+|\b\S+/\S+\b)"
     windows_path_pattern = r"[a-zA-Z]:\\(?:[^\\\s,]+\\?)*[^\\\s,]+"
@@ -55,6 +76,7 @@ def extract_paths(text: str):
         print("[ WARNING ] Failed to extract paths in zsh_codex")
         return []
 
+    timestamp("end extract_paths")
     return matches
 
 
@@ -69,11 +91,13 @@ def extract_valid_dirs(paths: list, cwd: str):
     Returns:
         (list): List of valid paths.
     """
+    timestamp("begin extract_valid_dirs")
     valid_dirs = []
     for path in paths:
         if os.path.isdir(os.path.join(cwd, path)):
             valid_dirs.append([path])
 
+    timestamp("end extract_valid_dirs")
     return valid_dirs
 
 
@@ -88,6 +112,7 @@ def extract_valid_files(paths: list, cwd: str):
     Returns:
         (list): List of valid files.
     """
+    timestamp("begin extract_valid_files")
     valid_files = []
     for path in paths:
         if os.path.exists(os.path.join(cwd, path)) and not os.path.isdir(
@@ -95,6 +120,7 @@ def extract_valid_files(paths: list, cwd: str):
         ):
             valid_files.append([path])
 
+    timestamp("end extract_valid_files")
     return valid_files
 
 
@@ -102,6 +128,7 @@ def create_template_ini_file(api_type):
     """
     If the ini file does not exist create it and add the api_key placeholder
     """
+    timestamp("begin create_template_ini_file")
     if api_type == "openai":
         file_path = OPENAI_API_KEYS_LOCATION
         content = "[openai]\nsecret_key=\napi_base=https://api.openai.com/v1\nmodel=gpt-4-turbo-preview\n"
@@ -119,12 +146,14 @@ def create_template_ini_file(api_type):
         print("Please edit it and add your API key")
         print(f"If you do not yet have an API key, you can get it from: {url}")
         sys.exit(1)
+    timestamp("end create_template_ini_file")
 
 
 def initialize_api(api_type):
     """
     Initialize the specified API
     """
+    timestamp("begin initialize_api")
     create_template_ini_file(api_type)
     config = configparser.ConfigParser()
 
@@ -137,24 +166,31 @@ def initialize_api(api_type):
             organization=api_config.get("organization"),
         )
         api_config.setdefault("model", api_config.get("model", OPENAI_DEFAULT_MODEL))
+        timestamp("end initialize_api")
         return client, api_config
     else:  # gemini
         config.read(GEMINI_API_KEYS_LOCATION)
         api_config = {k: v.strip("\"'") for k, v in config["gemini"].items()}
         genai.configure(api_key=api_config["api_key"])
         api_config.setdefault("model", GEMINI_DEFAULT_MODEL)
+        timestamp("end initialize_api")
         return genai, api_config
 
 
 def get_completion(api_type, client, config, full_command, cwd):
+    timestamp("begin get_completion")
     home = os.environ["HOME"]
     if api_type == "openai":
+        timestamp("1 get_completion")
         with open(os.path.join(home, ".zsh_history"), "r", encoding="unicode_escape") as f:
             zsh_history = f.read()
             f.close()
+        timestamp("2 get_completion")
 
         zsh_history = zsh_history.split("\n")[-1000:]
+        timestamp("3 get_completion")
         zsh_history = "\n".join([item[15:] for item in zsh_history])
+        timestamp("4 get_completion")
 
         send_messages = [
             {
@@ -180,20 +216,25 @@ def get_completion(api_type, client, config, full_command, cwd):
             },
             {"role": "system", "content": f".zsh_history: \n {zsh_history}"},
         ]
+        timestamp("5 get_completion")
         response = client.chat.completions.create(
             model=config["model"],
             messages=send_messages,
             temperature=float(config.get("temperature", 1.0)),
         )
-        with open(CODE_PATH + "send.txt", "w") as f:
-            f.write(f"model = {config['model']}\n\n")
-            f.write(f"messages = {send_messages}\n\n")
-            f.close()
-        with open(CODE_PATH + "response.txt", "w") as f:
-            f.write(f"{response.usage.__str__()}\n\n")
-            f.write(f"{response.model.__str__()}\n\n")
-            f.write(f"{response.choices.__str__()}\n\n")
-            f.close()
+        timestamp("6 get_completion")
+        if DO_SEND_RECEIVE:
+            with open(CODE_PATH + "send.txt", "w") as f:
+                f.write(f"model = {config['model']}\n\n")
+                f.write(f"messages = {send_messages}\n\n")
+                f.close()
+            timestamp("7 get_completion")
+            with open(CODE_PATH + "response.txt", "w") as f:
+                f.write(f"{response.usage.__str__()}\n\n")
+                f.write(f"{response.model.__str__()}\n\n")
+                f.write(f"{response.choices.__str__()}\n\n")
+                f.close()
+        timestamp("end get_completion")
         return response.choices[0].message.content
     else:  # gemini
         model = client.GenerativeModel(config["model"])
@@ -204,10 +245,12 @@ def get_completion(api_type, client, config, full_command, cwd):
             + full_command
         )
         response = chat.send_message(prompt)
+        timestamp("end get_completion")
         return response.text
 
 
 def main():
+    timestamp("begin main")
     parser = argparse.ArgumentParser(
         description="Generate command completions using AI."
     )
@@ -263,6 +306,7 @@ def main():
     #     completion = "\n" + completion
 
     sys.stdout.write(completion)
+    timestamp("end main")
 
 
 if __name__ == "__main__":
