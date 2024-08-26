@@ -145,8 +145,9 @@ def initialize_api(api_type):
 
 
 def get_completion(api_type, client, config, full_command, cwd):
+    home = os.environ["HOME"]
     if api_type == "openai":
-        with open("/Users/benls/.zsh_history", "r", encoding="unicode_escape") as f:
+        with open(os.path.join(home, ".zsh_history"), "r", encoding="unicode_escape") as f:
             zsh_history = f.read()
             f.close()
 
