@@ -64,7 +64,7 @@ pip3 install google-generativeai
 2. Download the ZSH plugin.
 
 ```bash
-git clone https://github.com/tom-doerr/zsh_codex.git ~/.oh-my-zsh/custom/plugins/zsh_codex 
+git clone https://github.com/benjaminls/zsh_codex.git ~/.oh-my-zsh/custom/plugins/zsh_codex 
 ```
 
 3. Add the following to your `.zshrc` file.
